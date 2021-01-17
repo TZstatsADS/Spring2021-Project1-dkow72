@@ -1,0 +1,259 @@
+---
+title: "An American Story of Income and Votes"
+output:
+  pdf_document: default
+  html_notebook: default
+  html_document: default
+  word_document: default
+---
+```{r load libraries, message=FALSE, warning=FALSE, include=FALSE}
+packages.used=as.list(
+  c(
+  "tidyverse",
+  "haven",
+  "devtools",
+  "RColorBrewer",
+  "data.table",
+  "ggplot2")
+)
+
+check.pkg = function(x){
+  if(!require(x, character.only=T)) install.packages(x, 
+                                                     character.only=T,
+                                                     dependence=T)
+}
+
+lapply(packages.used, check.pkg)
+```
+
+```{r cover image, echo=FALSE, out.width = '100%', out.height = '100%'}
+knitr::include_graphics("figs/dkow/capitol_storming.png")
+```
+
+We live in an epoch characterized by high levels of socio-economic inequality. The income Gini Index is a commonly used statistical tool for gauging economic inequality in an economy. A simple way of interpreting the index is as such: an economy in which every individual has the same income would have an income Gini Index of 0, while an economy in which a single resident earned all the income and everyone else earned nothing would have an income Gini Index of 1. The index thus ranges from 0 to 1, with higher values corresponding to higher levels of economic inequality. The US' income Gini Index has steadily rose since 1970, reflecting the widening income equality plaguing the nation.
+```{r echo=FALSE}
+library(openxlsx)
+census_inc_data <- read.xlsx("data/census_bureau_income.xlsx")
+save(census_inc_data, file="output/gini_data.RData")
+```
+```{r fig.align="center", out.width='80%', out.height='80%', warning=FALSE, echo=FALSE}
+load(file="output/gini_data.RData")
+ggplot(census_inc_data)+
+  theme_bw()+
+  aes(Year, Gini.index)+
+  geom_line(color='blue')+
+  scale_x_continuous(name="Year", limits=c(1970, 2019))+
+  ylab("US Gini Index")+
+  labs(title="The US gini index from 1970-2019")
+```
+Data from the Pew Research Centre on median incomes and the share of aggregate US income by income tier further highlight the growing income disparities in the country.
+
+
+```{r pew inequality, fig.align="center", echo=FALSE, out.width = '75%'}
+knitr::include_graphics("figs/dkow/pew_income_inequality_from1970.png")
+```
+
+This stark economic rift was brought to the very forefront of American politics in 2016 when Donald Trump won the presidential election - the 2,584 counties that Trump won contributed to a mere 36% of the country’s economic output, while the 472 counties Clinton won contributed to almost two thirds of the US economic output, as reported by Brookings. A similar analysis of the 2020 presidential election once again conducted by Brookings reveals that this imbalance has persisted with the counties voting for Trump accounting for a paltry 29% of the American economy.
+
+```{r brookings inequality, fig.align="center", echo=FALSE, out.width = '75%'}
+knitr::include_graphics("figs/dkow/brookings_70_gdp.png")
+```
+
+```{r load ANES data, include=FALSE}
+library(haven)
+anes_dat <-
+  read_sav("data/anes_timeseries_cdf_sav/anes_timeseries_cdf.sav")
+```
+```{r create variables of interest, include=FALSE}
+Election_years=as.character(seq(1968, 2016, 4))
+anes_use=anes_dat %>% 
+  mutate(
+    year=as_factor(VCF0004),
+    turnout=as_factor(VCF0703),
+    vote=as_factor(VCF0705),
+    race=as_factor(VCF0105a),
+    gender=as_factor(VCF0104),
+    age_group=as_factor(VCF0102),
+    education=as_factor(VCF0110),
+    income_group=as_factor(VCF0114),
+    occupation=as_factor(VCF0115),
+    religion=as_factor(VCF0128), 
+    social_class_perceived=as_factor(VCF0148),
+    party_identification=as_factor(VCF0301),
+    partisan_strength=as_factor(VCF0305),
+    election_interest=as_factor(VCF0310),
+    pub_affairs_interest=as_factor(VCF0313),
+    timing_vote=as_factor(VCF0712),
+    influence_attempt=as_factor(VCF0717)
+    ) %>%
+  filter(year %in% Election_years)
+
+anes_use <- anes_use %>% 
+  select(year, turnout, vote, race, gender, age_group, education, income_group, occupation, religion, social_class_perceived, party_identification, partisan_strength, election_interest, pub_affairs_interest, timing_vote, influence_attempt)
+
+save(anes_use, file="output/data_use.RData")
+
+```
+# **Analyzing Voter Behaviour by Income Group**
+Using data from the American National Election Studies (ANES), I explore trends and patterns in voter behaviour across different income groups. 
+
+## Voter Turnout by Income Group
+```{r turnout by income, fig.height=4, fig.width=16, echo=FALSE}
+load(file="output/data_use.RData")
+
+anes_turnout_income_group_year = anes_use %>%
+  filter(!is.na(income_group) & !is.na(turnout))%>%
+  group_by(year, income_group)%>%
+  count(turnout)%>%
+  group_by(year, income_group)%>%
+  mutate(
+    prop=n/sum(n)
+  )
+
+levels(anes_turnout_income_group_year$income_group)[levels(anes_turnout_income_group_year$income_group)=="1. 0 to 16 percentile"] <- "0-16th percentile"
+levels(anes_turnout_income_group_year$income_group)[levels(anes_turnout_income_group_year$income_group)=="2. 17 to 33 percentile"] <- "17-33rd percentile"
+levels(anes_turnout_income_group_year$income_group)[levels(anes_turnout_income_group_year$income_group)=="3. 34 to 67 percentile"] <- "34-67th percentile"
+levels(anes_turnout_income_group_year$income_group)[levels(anes_turnout_income_group_year$income_group)=="4. 68 to 95 percentile"] <- "68-95th percentile"
+levels(anes_turnout_income_group_year$income_group)[levels(anes_turnout_income_group_year$income_group)=="5. 96 to 100 percentile"] <- "96-100th percentile"
+
+levels(anes_turnout_income_group_year$turnout)[levels(anes_turnout_income_group_year$turnout)=="1. Not registered, and did not vote"] <- "Did not vote (registered)"
+levels(anes_turnout_income_group_year$turnout)[levels(anes_turnout_income_group_year$turnout)=="2. Registered, but did not vote"] <- "Did not vote (unregistered)"
+levels(anes_turnout_income_group_year$turnout)[levels(anes_turnout_income_group_year$turnout)=="3. Voted (registered)"] <- "Voted (registered)"
+
+ggplot(anes_turnout_income_group_year, 
+       aes(x=year, y=prop, fill=turnout)) +
+  geom_bar(stat="identity", colour="black") + facet_wrap(~income_group, ncol=5) + theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))+
+  scale_fill_brewer(palette="Greens")+
+  labs(title="How did voter turnout vary by income group?")
+```
+
+Apart from the fact that voter turnout tends to increase with income group, it is difficult to identify stand out trends from the data, particularly so amongst the middle and higher income groups. Among the lower income groups (0-16th and 17-33rd percentile) however, we do note a steady and gradual increase in voter turnout since their lows in the 1988 presidential election. 
+
+## Votes by Income Group
+```{r vote by income, fig.height=4, fig.width=16, echo=FALSE}
+load(file="output/data_use.RData")
+
+anes_vote_income_group_year = anes_use %>%
+  filter(!is.na(income_group) & !is.na(vote))%>%
+  group_by(year, income_group)%>%
+  count(vote)%>%
+  group_by(year, income_group)%>%
+  mutate(
+    prop=n/sum(n)
+  )
+
+levels(anes_vote_income_group_year$income_group)[levels(anes_vote_income_group_year$income_group)=="1. 0 to 16 percentile"] <- "0-16th percentile"
+levels(anes_vote_income_group_year$income_group)[levels(anes_vote_income_group_year$income_group)=="2. 17 to 33 percentile"] <- "17-33rd percentile"
+levels(anes_vote_income_group_year$income_group)[levels(anes_vote_income_group_year$income_group)=="3. 34 to 67 percentile"] <- "34-67th percentile"
+levels(anes_vote_income_group_year$income_group)[levels(anes_vote_income_group_year$income_group)=="4. 68 to 95 percentile"] <- "68-95th percentile"
+levels(anes_vote_income_group_year$income_group)[levels(anes_vote_income_group_year$income_group)=="5. 96 to 100 percentile"] <- "96-100th percentile"
+
+levels(anes_vote_income_group_year$vote)[levels(anes_vote_income_group_year$vote)=="1. Democrat"] <- "Democrat"
+levels(anes_vote_income_group_year$vote)[levels(anes_vote_income_group_year$vote)=="2. Republican"] <- "Republican"
+levels(anes_vote_income_group_year$vote)[levels(anes_vote_income_group_year$vote)=="3. Other (incl. 3d/minor party candidates and write-ins)"] <- "Others"
+
+ggplot(anes_vote_income_group_year, 
+       aes(x=year, y=prop, fill=vote)) +
+  geom_bar(stat="identity", colour="black") + facet_wrap(~income_group, ncol=5) + theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))+
+  scale_fill_manual(values=c("#0000ff", "#ff0000", "#808080"))+
+  labs(title="How did votes vary by income group?")
+```
+```{r vote by income line, fig.height=5, fig.width=16, echo=FALSE}
+ggplot(anes_vote_income_group_year,
+       aes(x=year, y=prop, color=vote, group=vote))+
+  geom_line()+
+  facet_wrap(~income_group, ncol=3) + theme_bw() + geom_point()+
+  scale_color_manual(values=c("#0000ff", "#ff0000", "#808080"))+
+  theme(axis.text.x = element_text(angle = 90))+
+  theme(panel.spacing.y = unit(1, "lines"))
+```
+
+Comparing votes across income groups, we can glean some noticeable voter trends. First, we observe that the Democratic party's vote share among the highest income group (96th-100th percentile) has increased considerably since the 1980 presidential election. Turning to all the other income groups however, the Democratic party's vote share has declined in the past decade. The extent of this decline is greatest in the lower and middle income groups. Similar patterns in voter party identification corroborates this idea that voters political preferences across income groups are fundamentally changing, representing a shift in the political landscape of the United States. 
+
+```{r party id by income, fig.height=4, fig.width=16, echo=FALSE}
+load(file="output/data_use.RData")
+
+anes_party_id_income = anes_use %>%
+  filter(!is.na(income_group) & !is.na(party_identification))%>%
+  group_by(year, income_group)%>%
+  count(party_identification)%>%
+  group_by(year, income_group)%>%
+  mutate(
+    prop=n/sum(n)
+  )
+
+ggplot(anes_party_id_income, 
+       aes(x=year, y=prop, fill=party_identification)) +
+  geom_bar(stat="identity", colour="black") + facet_wrap(~income_group, ncol=5) + theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))+
+  scale_fill_manual(values=colorspace::diverge_hsv(7))+
+  labs(title="How did voters' party identification vary by income group?")
+```
+```{r party vote by income line, fig.height=6, fig.width=16, echo=FALSE}
+ggplot(anes_party_id_income,
+       aes(x=year, y=prop, color=party_identification, group=party_identification))+
+  geom_line()+
+  facet_wrap(~income_group, ncol=3) + theme_bw() + geom_point()+
+  scale_color_manual(values=colorspace::diverge_hsv(7))+
+  theme(panel.spacing.y = unit(1, "lines"))
+```
+
+Trump's support base is often perceived to comprise primarily of the American working class. A core part of Trump's 2016 campaign was after all premised on his determination to bring back jobs in the manufacturing sector and naturally this appealed greatly to the American working class. It hence comes as no surprise to see the Republican party's vote share increasing in the lower middle bracket of income groups. Voter self-perceived class data further supports Trump's success in this segment of the American population.
+
+
+```{r vote by social class, fig.height=4, fig.width=16, echo=FALSE}
+load(file="output/data_use.RData")
+
+anes_vote_social_class = anes_use %>%
+  filter(!is.na(social_class_perceived) & !is.na(vote))%>%
+  group_by(year, social_class_perceived)%>%
+  count(vote)%>%
+  group_by(year, social_class_perceived)%>%
+  mutate(
+    prop=n/sum(n)
+  )
+
+levels(anes_vote_social_class$social_class_perceived)[levels(anes_vote_social_class$social_class_perceived)=="0. Lower class (VOLUNTEERED)"] <- "Lower class"
+levels(anes_vote_social_class$social_class_perceived)[levels(anes_vote_social_class$social_class_perceived)=="1. Average working"] <- "Average working"
+levels(anes_vote_social_class$social_class_perceived)[levels(anes_vote_social_class$social_class_perceived)=="2. Working--NA average or upper"] <- "Working"
+levels(anes_vote_social_class$social_class_perceived)[levels(anes_vote_social_class$social_class_perceived)=="3. Upper working"] <- "Upper working"
+levels(anes_vote_social_class$social_class_perceived)[levels(anes_vote_social_class$social_class_perceived)=="4. Average middle"] <- "Average middle"
+levels(anes_vote_social_class$social_class_perceived)[levels(anes_vote_social_class$social_class_perceived)=="5. Middle class--NA average or upper"] <- "Middle class"
+levels(anes_vote_social_class$social_class_perceived)[levels(anes_vote_social_class$social_class_perceived)=="6. Upper middle"] <- "Upper middle"
+levels(anes_vote_social_class$social_class_perceived)[levels(anes_vote_social_class$social_class_perceived)=="7. Upper class (VOLUNTEERED)"] <- "Upper class"
+
+levels(anes_vote_social_class$vote)[levels(anes_vote_social_class$vote)=="1. Democrat"] <- "Democrat"
+levels(anes_vote_social_class$vote)[levels(anes_vote_social_class$vote)=="2. Republican"] <- "Republican"
+levels(anes_vote_social_class$vote)[levels(anes_vote_social_class$vote)=="3. Other (incl. 3d/minor party candidates and write-ins)"] <- "Others"
+
+anes_vote_social_class = anes_vote_social_class %>% 
+  filter(social_class_perceived %in% c('Lower class', 'Average working', 'Working', 'Upper working'))
+
+ggplot(anes_vote_social_class, 
+       aes(x=year, y=prop, fill=vote)) +
+  geom_bar(stat="identity", colour="black") + facet_wrap(~social_class_perceived, ncol=4) + theme_bw()+
+  theme(axis.text.x = element_text(angle = 90))+
+  scale_fill_manual(values=c("#0000ff", "#ff0000", "#808080"))+
+  labs(title="How did votes vary by self-perceieved social class?")
+```
+```{r party vote by social class, fig.height=4, fig.width=16, echo=FALSE}
+anes_vote_social_class_2 <- anes_vote_social_class %>% 
+  filter(vote!='Others')
+
+ggplot(anes_vote_social_class_2,
+       aes(x=year, y=prop, color=vote, group=vote))+
+  geom_line()+
+  facet_wrap(~social_class_perceived, ncol=4) + theme_bw() + geom_point()+
+  scale_color_manual(values=c("#0000ff", "#ff0000", "#808080"))+
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+The surge in the Republican party's vote share among voters in lowest income group (0-16th percentile) and similarly voters who identify as lower class, is however, more intriguing. It is difficult to reconcile this trend with the fact that the Trump campaign did not directly target the lowest income groups while a key pillar of the 2016 Clinton campaign was precisely to ameliorate the socio-economic conditions of America's poor. Examples of key campaign promises by the Democratic party included eliminating tuition at public colleges, increasing the federal minimum wage and advancing universal health care. The differences between Democratic and Republican party's stance on tackling economic inequality is well captured by data from the Pew Research Center indicating that Democrats are more cognizant of economic inequality in the country as compared to Republicans.
+
+```{r pew inequality dems reps, fig.align="center", echo=FALSE, out.width = '80%'}
+knitr::include_graphics("figs/dkow/pew_income_inequality_from1970.png")
+```
+
+The changes in vote share among voters in the 68th to 95th percentile income group is also worth analyzing. We see that the Democratic party lost some ground in this group while the Republican party held strong. Furthermore, the charts on voters' party identification shows a considerable uptick in voters in this income group identifying as Republicans. The data seems to suggest that the Trump "working-class fan base" extends bidirectionally beyond the middle low income groups, calling for a rethink of our pre-conceived notions on the profile of Trump supporters.
