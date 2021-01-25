@@ -2,4 +2,4 @@
 
 ### Doc folder
 
-The doc directory contains the report or presentation files. It can have subfolders.  
+Contains the RMarkdown document containing the entire analysis along with a knitted HTML and PDF output of the RMarkdown document
